@@ -11,9 +11,12 @@ permissions:
 jobs:
   windows:
     runs-on: windows-2022
+    environment: desktop-release
     timeout-minutes: 60
     env:
       GIT_LFS_SKIP_SMUDGE: '1'
+      LOCAL_PROPERTIES_BASE64: ${{ secrets.NUVIO_DESKTOP_LOCAL_PROPERTIES_BASE64 }}
+      SENTRY_DESKTOP_DSN: ${{ secrets.SENTRY_DESKTOP_DSN }}
     steps:
       - name: Check out exact PR source
         shell: bash
@@ -33,11 +36,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v6
-      - name: Configure development build
-        shell: pwsh
+      - name: Configure desktop runtime
+        shell: bash
         run: |
-          # The app supports user-supplied servers. No production credentials or telemetry are bundled.
-          New-Item -ItemType File -Path local.properties -Force | Out-Null
+          test -n "$LOCAL_PROPERTIES_BASE64" || { echo 'The desktop-release environment is missing NUVIO_DESKTOP_LOCAL_PROPERTIES_BASE64.' >&2; exit 1; }
+          printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
+          sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_(STORE_FILE|STORE_PASSWORD|KEY_ALIAS|KEY_PASSWORD)|NUVIO_MACOS_(SIGNING_IDENTITY|NOTARY_APPLE_ID|NOTARY_TEAM_ID|NOTARY_PASSWORD|NOTARY_KEYCHAIN_PROFILE|NOTARY_KEYCHAIN_PATH))[[:space:]]*=/d' local.properties
       - name: Install WebView2 SDK
         shell: pwsh
         run: |
@@ -60,7 +64,7 @@ jobs:
           $msis = @(Get-ChildItem composeApp/build/compose/release-msis/*.msi)
           if ($msis.Count -ne 1) { throw 'Expected exactly one MSI' }
           Copy-Item $msis[0].FullName artifact/Nuvio-PR1107-Windows-x64-30aa7a0d.msi
-          @('Source: https://github.com/NuvioMedia/NuvioDesktop/pull/1107', 'Commit: 30aa7a0d02dcddda7d6a9a11a77b774bfc247dd6', 'Unsigned development build. Configure your server in the app; production API credentials are not included.') | Set-Content artifact/BUILD.txt
+          @('Source: https://github.com/NuvioMedia/NuvioDesktop/pull/1107', 'Commit: 30aa7a0d02dcddda7d6a9a11a77b774bfc247dd6', 'Unsigned test build using the fork desktop-release environment configuration.') | Set-Content artifact/BUILD.txt
           Get-FileHash artifact/*.msi -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([System.IO.Path]::GetFileName($_.Path))" } | Set-Content artifact/SHA256SUMS.txt
       - uses: actions/upload-artifact@v7
         with:
