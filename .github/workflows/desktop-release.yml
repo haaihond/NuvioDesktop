@@ -12,12 +12,16 @@ jobs:
   windows:
     runs-on: windows-2022
     timeout-minutes: 60
+    env:
+      GIT_LFS_SKIP_SMUDGE: '1'
     steps:
-      - uses: actions/checkout@v6
-        with:
-          repository: NuvioMedia/NuvioDesktop
-          ref: 30aa7a0d02dcddda7d6a9a11a77b774bfc247dd6
-          persist-credentials: false
+      - name: Check out exact PR source
+        shell: bash
+        run: |
+          git init .
+          git remote add origin https://github.com/NuvioMedia/NuvioDesktop.git
+          git fetch --depth=1 origin 30aa7a0d02dcddda7d6a9a11a77b774bfc247dd6
+          git checkout --detach 30aa7a0d02dcddda7d6a9a11a77b774bfc247dd6
       - name: Fetch Windows player runtime
         shell: bash
         run: |
